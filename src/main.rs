@@ -1,7 +1,7 @@
 #![feature(iter_array_chunks)]
 
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader};
 use std::net::{TcpListener, TcpStream};
 use std::io::Cursor;
 use std::path::Path;
@@ -34,6 +34,9 @@ fn handle_client(mut stream: TcpStream) {
 fn main() {
     println!("Hello, world!");
 
+    // let json_file = "clipboard_history.json";
+    // clipboard_monitor_txtloop(json_file);
+    
     let _img_path = "/home/aadhiishvar/Downloads/robin.jpg";
     convert_to_png(_img_path);
     
@@ -43,7 +46,7 @@ fn main() {
     let _enc_byte_vec = aes_gcm_encrypt(comp_byte.unwrap());
     // let dec_byte_vec = aes_gcm_decrypt(enc_byte_vec.unwrap());
     
-    byte_decompression();
+    // byte_decompression();
 
     let ear = TcpListener::bind("0.0.0.0:7878").unwrap();
 
@@ -124,7 +127,7 @@ fn byte_decompression() -> Result<Vec<u8>, Box<dyn Error>>
 {
     let mut d = GzDecoder::new("...".as_bytes());
     let mut s = String::new();
-    d.read_to_string(&mut s).unwrap();
+    d.read_to_string(&mut s).expect("Failed to read file");
     println!("{}", s);
     Ok(Vec::<u8>::new())
 }
@@ -139,7 +142,7 @@ use typenum::U12;
 
 fn aes_gcm_encrypt(data: Vec<u8>) -> (Vec<u8>,( Vec<u8>, Nonce<U12>)) {
     let key = Aes256Gcm::generate_key(&mut OsRng);
-    println!("{:?}",type_of(&key));
+    // println!("{:?}",type_of(&key));
     let cipher = Aes256Gcm::new(&key);
     let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
 
@@ -165,3 +168,91 @@ fn aes_gcm_decrypt(key_vec:Vec<u8>,buff_data:&mut Vec<u8>,nonce: Nonce<U12>) -> 
 
 //TODO 3 convertion an per teh mode chosen , default which is WEBp,normal for jepg/jpg, and best is PNG -> write it as a fn
 //TODO encrypt cpmpressed vecv
+
+
+//todo save the copied txt in an json file, with the timestamp, device_name, device_user_name
+
+use serde::{Serialize, Deserialize};
+
+#[derive(Serialize, Deserialize)]
+struct ClipboardEntry {
+    timestamp: String,
+    device_name: String,
+    os_name: String,      
+    user_name: String,
+    content: String,
+}
+
+
+use std::fs::{File, OpenOptions};
+use std::io::{Read, Write};
+use chrono::Local;
+use whoami;
+
+
+fn save_clipboard_entry(new_content: &str, json_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let mut entries: Vec<ClipboardEntry> = if std::path::Path::new(json_path).exists() {
+        let mut file = File::open(json_path)?;
+        let mut content = String::new();
+        file.read_to_string(&mut content)?;
+        if content.is_empty() { vec![] } else { serde_json::from_str(&content)? }
+    } else {
+        vec![]
+    };
+
+    // Skip if the content is same as last entry
+    if entries.last().map(|e| e.content.as_str()) == Some(new_content) {
+        return Ok(());
+    }
+
+    let device_name = whoami::devicename_os();
+    let user_name = whoami::username();
+    let os_name = whoami::platform(); // get OS name
+
+    let entry = ClipboardEntry {
+        timestamp: Local::now().to_rfc3339(),
+        device_name: OsString::from(device_name).to_string_lossy().to_string(),
+        os_name: os_name.to_string(),
+        user_name,
+        content: new_content.to_string(),
+    };
+
+    entries.push(entry);
+
+    let mut file = OpenOptions::new().write(true).create(true).truncate(true).open(json_path)?;
+    file.write_all(serde_json::to_string_pretty(&entries)?.as_bytes())?;
+
+    Ok(())
+}
+
+
+
+use arboard::Clipboard;
+use std::{thread, time::Duration};
+use std::ffi::OsString;
+
+fn clipboard_monitor_txtloop(json_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let mut clipboard = Clipboard::new()?;
+    let mut last_content = String::new();
+
+    loop {
+        match clipboard.get_text() {
+            Ok(current_content) => {
+                if current_content != last_content {
+                    save_clipboard_entry(&current_content, json_path)?;
+                    last_content = current_content.clone();
+                    println!("Saved clipboard: {}", &current_content);
+                }
+            }
+            Err(_) => {
+                // todo Clipboard might be empty or contain non-text; just skip
+            }
+        }
+
+        thread::sleep(Duration::from_secs(1));
+    }
+}
+
+
+
+
