@@ -34,8 +34,8 @@ fn handle_client(mut stream: TcpStream) {
 fn main() {
     println!("Hello, world!");
 
-    // let json_file = "clipboard_history.json";
-    // clipboard_monitor_txtloop(json_file);
+    let json_file = "clipboard_history.json";
+    clipboard_monitor_txtloop(json_file);
     
     let _img_path = "/home/aadhiishvar/Downloads/robin.jpg";
     convert_to_png(_img_path);
@@ -48,7 +48,9 @@ fn main() {
     
     // byte_decompression();
 
-    let ear = TcpListener::bind("0.0.0.0:7878").unwrap();
+
+    let _ipa:&str = "0.0.0.0:7878";
+    let ear = TcpListener::bind(ipa).unwrap();
 
     {
         for  stream in ear.incoming()
@@ -246,6 +248,7 @@ fn clipboard_monitor_txtloop(json_path: &str) -> Result<(), Box<dyn std::error::
             }
             Err(_) => {
                 // todo Clipboard might be empty or contain non-text; just skip
+                println!("error in clipboard fn, might be in X or wayland , try again using a different one");
             }
         }
 
