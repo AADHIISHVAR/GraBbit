@@ -1,10 +1,11 @@
 #![feature(iter_array_chunks)]
 
+use aes_gcm::aead::rand_core::RngCore;
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::net::{TcpListener, TcpStream};
 use std::io::Cursor;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use image::{ImageBuffer, ImageFormat, ImageReader};
 use std::any::{type_name, Any};
 use std::error::Error;
@@ -24,20 +25,25 @@ fn handle_client(mut stream: TcpStream) {
                 contents.len(),
                 contents
             );
-            stream.write_all(response.as_bytes()).unwrap();
+            use std::io::Write;
+            let _ = stream.write_all(response.as_bytes());
         }
         Err(_) => {}
     }
 
 } //streams the clip file 
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     println!("Hello, world!");
     find_os();
 
     let json_file = "clipboard_history.json";
-    clipboard_monitor_txtloop(json_file);
-    
+
+    // Start clipboard monitoring in background thread
+    let json_file_clone = json_file.to_string();
+    std::thread::spawn(move || {
+        let _ = clipboard_monitor_txtloop(&json_file_clone);
+    });
 
     // let _img_path = "/home/aadhiishvar/Downloads/robin.jpg";
     // convert_to_png(_img_path);
@@ -50,22 +56,22 @@ fn main() {
 
     // byte_decompression();
 
-    
-    
 
-    let _ipa:&str = "0.0.0.0:7878";
-    let ear = TcpListener::bind(_ipa).unwrap();
+
+
+    let _ipa:&str = "0.0.0.0:7879";
+    let ear = TcpListener::bind(_ipa)?;
 
     {
         for  stream in ear.incoming()
         {
             match stream {
                 Ok(mut stream) => {
-                    let peer = stream.peer_addr().unwrap();
+                    let peer = stream.peer_addr()?;
                     let mut reader = BufReader::new(&mut stream);
 
                     let mut l = String::new();
-                    reader.read_line(&mut l).unwrap();
+                    reader.read_line(&mut l)?;
                     // println!("Client Connected: {:?}", peer);
                     // println!("{}", l);
 
@@ -83,6 +89,8 @@ fn main() {
 
         }
     }
+
+    Ok(())
 }
 
 
@@ -93,16 +101,16 @@ fn convert_to_png(img_path: &str) -> Result<Vec<u8>, Box<dyn Error>> {
         .with_guessed_format()?
         .decode()?;     // Decode to DynamicImage
     // image.save("rob_png.png");
-    
+
     let image1 = ImageReader::open(img_path)?.with_guessed_format()?
         .decode()?;
 
     let _raw_byst = image1.into_bytes();
     println!("{} {}", _raw_byst.len(), " bytes of raw");
-    
+
     let mut png_bytes: Vec<u8> = Vec::new();
     image.write_to(&mut Cursor::new(&mut png_bytes), ImageFormat::Png)?;
-    
+
     println!("{} {}",png_bytes.len()," bytes of png");
     Ok(png_bytes)
 }
@@ -129,7 +137,7 @@ fn byte_compression(data: &Vec<u8>) -> Result<Vec<u8>, Box<dyn Error>> {
 
 use std::io::prelude::*;
 use flate2::read::GzDecoder;
-fn byte_decompression() -> Result<Vec<u8>, Box<dyn Error>> 
+fn byte_decompression() -> Result<Vec<u8>, Box<dyn Error>>
 {
     let mut d = GzDecoder::new("...".as_bytes());
     let mut s = String::new();
@@ -154,18 +162,18 @@ fn aes_gcm_encrypt(data: Vec<u8>) -> (Vec<u8>,( Vec<u8>, Nonce<U12>)) {
     let mut buffer = data.clone();
     // Return (encrypted data, (key bytes, nonce))
     cipher.encrypt_in_place(&nonce, b"", &mut buffer).unwrap();
-    
+
     (buffer, (key.to_vec(), nonce))
 }
 
 
 fn aes_gcm_decrypt(key_vec:Vec<u8>,buff_data:&mut Vec<u8>,nonce: Nonce<U12>) -> Result<Vec<u8>,Box<dyn Error>>
 {
-    let key = aes_gcm::Key::<Aes256Gcm>::from_slice(&key_vec); 
+    let key = aes_gcm::Key::<Aes256Gcm>::from_slice(&key_vec);
     let cipher = Aes256Gcm::new(key);
     // 5. Decrypt back
     let mut buff_data_dec = buff_data.clone();
-    
+
     cipher.decrypt_in_place(&nonce, b"", &mut buff_data_dec);
     // assert_eq!(buff_data_dec, buff_data); // Decryption should restore original
     Ok(buff_data_dec)
@@ -183,7 +191,7 @@ use serde::{Serialize, Deserialize};
 struct ClipboardEntry {
     timestamp: String,
     device_name: String,
-    os_name: String,      
+    os_name: String,
     user_name: String,
     content: String,
 }
@@ -214,6 +222,7 @@ fn save_clipboard_entry(new_content: &str, json_path: &str) -> Result<(), Box<dy
     let user_name = whoami::username();
     let os_name = whoami::platform(); // get OS name
 
+    use std::ffi::OsString;
     let entry = ClipboardEntry {
         timestamp: Local::now().to_rfc3339(),
         device_name: OsString::from(device_name).to_string_lossy().to_string(),
@@ -235,6 +244,7 @@ fn save_clipboard_entry(new_content: &str, json_path: &str) -> Result<(), Box<dy
 use arboard::Clipboard;
 use std::{thread, time::Duration};
 use std::ffi::OsString;
+use std::thread::current;
 
 fn clipboard_monitor_txtloop(json_path: &str) -> Result<(), Box<dyn std::error::Error>> {
     let mut clipboard = Clipboard::new()?;
@@ -243,18 +253,26 @@ fn clipboard_monitor_txtloop(json_path: &str) -> Result<(), Box<dyn std::error::
     loop {
         match clipboard.get_text() {
             Ok(current_content) => {
-                if current_content != last_content 
+                if current_content != last_content
                 {
                     save_clipboard_entry(&current_content, json_path)?;
                     last_content = current_content.clone();
                     println!("Saved clipboard: {}", &current_content);
-                   println!("{:?}",extract_path_from_clipboard(&last_content));
+
+                    if let Some(file_info) = extract_path_from_clipboard(&current_content) {
+                        // Hardcoded 32-byte hex key (64 hex characters = 32 bytes)
+                        let key_hex = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2";
+                        if let Err(e) = process_file(&file_info.path, key_hex) {
+                            eprintln!("Error processing file: {}", e);
+                        }
+                    }
+
                 }
             }
             Err(_) => {
                 // todo clipboard might be empty or contain non-text na -> just skip
                 continue;
-                println!("error in clipboard fn, might be in X or wayland , try again using a different one");
+                // println!("error in clipboard fn, might be in X or wayland , try again using a different one");
             }
         }
 
@@ -263,65 +281,7 @@ fn clipboard_monitor_txtloop(json_path: &str) -> Result<(), Box<dyn std::error::
 }
 
 
-// a big buble that gona make our project pop
 
-// fn extract_all_data_form_clip() ->Result<(),Box<dyn Error>> 
-// {
-// 
-//     // Try the simple cross-platform checks using `arboard`.
-//     // arboard can return text or an Image (RGBA + width/height).
-//     //
-//     // This will work on Windows, macOS, and common Linux setups (X11; for Wayland you
-//     // might need a different backend).
-//     let mut clipboard = arboard::Clipboard::new().map_err(|e| format!("open clipboard: {e}"))?;
-// 
-//     // 1) Try text
-//     match clipboard.get_text() {
-//         Ok(text) => {
-//             println!("clipboard has text ({} bytes):\n{}\n", text.len(), text);
-//         }
-//         Err(_) => {
-//             println!("no plain text or couldn't get text.");
-//         }
-//     }
-// 
-//     // 2) Try image
-//     match clipboard.get_image() {
-//         Ok(img) => {
-//             println!(
-//                 "clipboard has image: {}x{}, {} bytes (RGBA)",
-//                 img.width,
-//                 img.height,
-//                 img.bytes.len()
-//             );
-//             // example: save to file for inspection
-//             // convert RGBA to PNG using 'image' crate if you want to persist it:
-//             // use image::{ImageBuffer, Rgba};
-//             // let buf: ImageBuffer<Rgba<u8>, _> = ImageBuffer::from_raw(img.width, img.height, img.bytes).unwrap();
-//             // buf.save("pasted.png").unwrap();
-//         }
-//         Err(_) => println!("no image or couldn't get image."),
-//     }
-// 
-//     // 3) If you want *every* format the OS offers, you must branch by OS and call
-//     // platform APIs (see the notes below). We'll print a hint and return.
-//     println!("\nTo enumerate all formats (detailed list) -> implement platform-specific enumeration.");
-// 
-//     Ok(())
-// }
-
-
-fn find_os() -> Result<(),Box<dyn Error>>
-{
-    println!("Detecting OS and fetching clipboard data...\n");
-    match std::env::consts::OS {
-        "windows" => println!("the code base is working or WINDOWS based system"),
-        "macos" => println!("the code base is working or MAC OS based system"),
-        "linux" => println!("the code base is working or linux based system"),
-        other => println!("Unsupported OS: {}", other),
-    }
-    Ok(())
-}
 
 
 use regex::Regex;
@@ -340,11 +300,12 @@ enum FileType {
     Video(String),
     Unknown,
 }
-
 /// struct to hold the file info
+
+/// extract path and determine type
 #[derive(Debug)]
 struct FileInfo {
-    name: String,
+    path: PathBuf,
     file_type: FileType,
 }
 
@@ -357,7 +318,7 @@ fn extract_path_from_clipboard(text: &str) -> Option<FileInfo> {
                 if url.scheme() == "file" {
                     if let Ok(path) = url.to_file_path() {
                         return Some(FileInfo {
-                            name: path.file_name()?.to_string_lossy().to_string(),
+                            path: path.clone(),  // Keep the full path
                             file_type: detect_file_type(&path),
                         });
                     }
@@ -370,10 +331,10 @@ fn extract_path_from_clipboard(text: &str) -> Option<FileInfo> {
     let re = Regex::new(r"(?:(?:[A-Za-z]:)?[/\\][\w\s.\-/\\]+)").unwrap();
     if let Some(cap) = re.find(text) {
         let path_str = cap.as_str().trim_matches('"');
-        let path = Path::new(path_str);
+        let path = PathBuf::from(path_str);  // Convert to PathBuf directly
         return Some(FileInfo {
-            name: path.file_name()?.to_string_lossy().to_string(),
-            file_type: detect_file_type(path),
+            path: path.clone(),  // Keep the full path
+            file_type: detect_file_type(&path),
         });
     }
 
@@ -390,15 +351,181 @@ fn detect_file_type(path: &Path) -> FileType {
         Some(ref ext) if ext == "txt" => FileType::Text,
         Some(ref ext) if ["mp3", "wav", "ogg"].contains(&ext.as_str()) =>FileType::Audio(ext.clone()),
         Some(ref ext) if ["mp4"].contains(&ext.as_str()) =>FileType::Video(ext.clone()),
-        
+
         // todo more type
         _ => FileType::Unknown,
-    }   
+    }
 }
 
 
+use sha2::{Sha256, Digest};
+use zstd::Encoder;
 
+use chacha20poly1305::{XChaCha20Poly1305, aead::{Aead, KeyInit}, XNonce};
+use hex::encode as hex_encode;
+use base64::{engine::general_purpose, Engine as _};
 
+const CHUNK_SIZE: usize = 1024 * 1024; // 1 MiB
 
+fn hex_key_to_bytes(s: &str) -> anyhow::Result<[u8;32]> {
+    let v = hex::decode(s)?;
+    if v.len() != 32 {
+        println!("key must eb 32 bytes, {}",v.len());
+        anyhow::bail!("key must be 32 bytes");
+    }
+    let mut a = [0u8;32];
+    a.copy_from_slice(&v);
+    println!("[DEBUG] Key bytes (hex): {}", hex_encode(&a));
+    println!("[DEBUG] Key bytes (raw): {:?}", a);
+    Ok(a)
+}
 
+fn compute_sha256(path: &Path) -> anyhow::Result<String> {
+    let mut f = File::open(path)?;
+    let mut hasher = Sha256::new();
+    let mut buf = [0u8; 8192];
 
+    println!("\n[HASH] Computing SHA256 for: {}", path.display());
+    loop {
+        let n = f.read(&mut buf)?;
+        if n == 0 { break; }
+        hasher.update(&buf[..n]);
+    }
+
+    let hash = hex_encode(hasher.finalize());
+    println!("[HASH] SHA256: {}", hash);
+    Ok(hash)
+}
+
+fn compress_file(src: &Path, dest: &Path) -> anyhow::Result<()> {
+    println!("\n[COMPRESS] Starting compression...");
+    println!("[COMPRESS] Source: {}", src.display());
+    println!("[COMPRESS] Dest: {}", dest.display());
+
+    let mut input = File::open(src)?;
+    let output = File::create(dest)?;
+    let mut encoder = Encoder::new(output, 3)?;
+
+    let bytes_copied = std::io::copy(&mut input, &mut encoder)?;
+    encoder.finish()?;
+
+    let compressed_size = std::fs::metadata(dest)?.len();
+    println!("[COMPRESS] Original size: {} bytes", bytes_copied);
+    println!("[COMPRESS] Compressed size: {} bytes", compressed_size);
+    println!("[COMPRESS] Compression ratio: {:.2}%", (compressed_size as f64 / bytes_copied as f64) * 100.0);
+
+    Ok(())
+}
+
+fn encrypt_file(src: &Path, dest: &Path, key_bytes: &[u8;32]) -> anyhow::Result<()> {
+    println!("\n[ENCRYPT] Initializing encryption...");
+    println!("[ENCRYPT] Algorithm: XChaCha20-Poly1305");
+
+    let cipher = XChaCha20Poly1305::new_from_slice(key_bytes)
+        .map_err(|e| anyhow::anyhow!("Key error: {:?}", e))?;
+
+    let mut input = File::open(src)?;
+    let mut output = File::create(dest)?;
+    let mut buf = vec![0u8; CHUNK_SIZE];
+    let mut chunk_idx = 0;
+
+    loop {
+        let n = input.read(&mut buf)?;
+        if n == 0 { break; }
+
+        let plaintext = &buf[..n];
+
+        // Generate random nonce
+        let mut nonce_bytes = [0u8; 24];
+        OsRng.fill_bytes(&mut nonce_bytes);
+        let nonce = XNonce::from_slice(&nonce_bytes);
+
+        println!("\n[ENCRYPT] === Chunk {} ===", chunk_idx);
+        println!("[ENCRYPT] Plaintext size: {} bytes", n);
+        println!("[ENCRYPT] Nonce (hex): {}", hex_encode(&nonce_bytes));
+        println!("[ENCRYPT] Nonce (base64): {}", general_purpose::STANDARD.encode(&nonce_bytes));
+        println!("[ENCRYPT] Plaintext preview (first 32 bytes): {:?}", &plaintext[..n.min(32)]);
+
+        // Encrypt
+        let ciphertext = cipher.encrypt(nonce, plaintext)
+            .map_err(|e| anyhow::anyhow!("Encryption failed: {:?}", e))?;
+
+        println!("[ENCRYPT] Ciphertext size: {} bytes (includes 16 byte auth tag)", ciphertext.len());
+        println!("[ENCRYPT] Ciphertext (hex): {}", hex_encode(&ciphertext));
+        println!("[ENCRYPT] Ciphertext (base64): {}", general_purpose::STANDARD.encode(&ciphertext));
+        println!("[ENCRYPT] Ciphertext preview (first 32 bytes): {:?}", &ciphertext[..ciphertext.len().min(32)]);
+
+        // Write nonce + ciphertext
+        output.write_all(&nonce_bytes)?;
+        output.write_all(&ciphertext)?;
+
+        chunk_idx += 1;
+    }
+
+    output.flush()?;
+    println!("\n[ENCRYPT] Total chunks encrypted: {}", chunk_idx);
+
+    Ok(())
+}
+
+pub fn process_file(path: &Path, key_hex: &str) -> anyhow::Result<()> {
+    println!("==============================================");
+    println!("     FILE ENCRYPTION PIPELINE");
+    println!("==============================================");
+    println!("Input file: {}", path.display());
+
+    println!("hi");
+    // Parse key
+    let key_bytes = hex_key_to_bytes(key_hex)?;
+    println!("key hex done");
+
+    // Step 1: Hash original file
+
+    let _original_hash = compute_sha256(path)?;
+    println!("sha done");
+    // Step 2: Compress
+    let temp_dir = std::env::temp_dir();
+    let filename = path.file_name().unwrap().to_string_lossy();
+    let compressed_path = temp_dir.join(format!("{}.zst", filename));
+    compress_file(path, &compressed_path)?;
+    println!("srep 2 completed");
+
+    // Step 3: Encrypt
+    let encrypted_path = temp_dir.join(format!("{}.enc", filename));
+    encrypt_file(&compressed_path, &encrypted_path, &key_bytes)?;
+
+    println!("step 3 done");
+
+    // Step 4: Base64 encode final output
+    println!("\n[BASE64] Encoding final encrypted file...");
+    let mut final_data = Vec::new();
+    File::open(&encrypted_path)?.read_to_end(&mut final_data)?;
+    println!("step 4 done");
+
+    let b64 = general_purpose::STANDARD.encode(&final_data);
+    println!("[BASE64] Final size: {} bytes", final_data.len());
+    println!("[BASE64] Base64 length: {} chars", b64.len());
+
+    // println!("\n=== BASE64 OUTPUT START ===");
+    // println!("{}", b64);
+    // println!("=== BASE64 OUTPUT END ===");
+
+    println!("\n[DONE] Temp files:");
+    println!("  Compressed: {}", compressed_path.display());
+    println!("  Encrypted: {}", encrypted_path.display());
+    println!("==============================================");
+
+    Ok(())
+}
+
+fn find_os() -> Result<(),Box<dyn Error>>
+{
+    println!("Detecting OS and fetching clipboard data...\n");
+    match std::env::consts::OS {
+        "windows" => println!("the code base is working or WINDOWS based system"),
+        "macos" => println!("the code base is working or MAC OS based system"),
+        "linux" => println!("the code base is working or linux based system"),
+        other => println!("Unsupported OS: {}", other),
+    }
+    Ok(())
+}
