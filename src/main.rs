@@ -17,11 +17,11 @@ fn type_of<T>(_: &T) -> &'static str {
 }
 
 fn handle_client(mut stream: TcpStream) {
-    let file: &str = "/home/aadhiishvar/Documents/rough-use/grabbit.txt";
+    let file: &str = "/home/aadhiishvar/Documents/rough-use/grabbit_proto_ui.html";
     match fs::read_to_string(file) {
         Ok(contents) => {
             let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}",
+                "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n{}",
                 contents.len(),
                 contents
             );
@@ -31,7 +31,7 @@ fn handle_client(mut stream: TcpStream) {
         Err(_) => {}
     }
 
-} //streams the clip file 
+} //streams the clip file
 
 fn main() -> anyhow::Result<()> {
     println!("Hello, world!");
@@ -94,7 +94,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 
-//it took me 1.5 hrs to write this fn (learned-> to look up the type of a variable and what kinda data that a fn returns, fr ), its too late 
+//it took me 1.5 hrs to write this fn (learned-> to look up the type of a variable and what kinda data that a fn returns, fr ), its too late
 fn convert_to_png(img_path: &str) -> Result<Vec<u8>, Box<dyn Error>> {
     println!("jello");
     let image = ImageReader::open(img_path)?
@@ -132,7 +132,7 @@ fn byte_compression(data: &Vec<u8>) -> Result<Vec<u8>, Box<dyn Error>> {
     println!("Original size: {} bytes", data.len());
     println!("Compressed size: {} bytes", compressed_bytes.len());
 
-    Ok(compressed_bytes) //send for encryption 
+    Ok(compressed_bytes) //send for encryption
 }
 
 use std::io::prelude::*;
@@ -529,3 +529,8 @@ fn find_os() -> Result<(),Box<dyn Error>>
     }
     Ok(())
 }
+
+//use the ai tools wiselt , i did some RnD abt the teckstack b4 cv on it , i aint cokmpleetely depend in a ai
+
+
+
