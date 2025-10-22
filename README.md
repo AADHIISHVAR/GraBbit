@@ -1,7 +1,7 @@
 <h1 align="center">🚀 GraBbit</h1>
 <p align="center">
-  <b>A cross-device clipboard and file sharing app for secure, seamless, local transfers.</b><br>
-  <i>Minimal. Encrypted. Local-first.</i>
+  <b>The missing link in your local device ecosystem.</b><br>
+  <i>Clipboard & File Sharing — Secure. Seamless. Local-first.</i>
 </p>
 
 <p align="center">
@@ -13,93 +13,93 @@
 
 ---
 
-## 🌟 Overview
+## 🌐 What is GraBbit?
 
-**GraBbit** is a privacy-focused, cross-device clipboard and file sharing application that works across your personal devices on the same network. Designed for **security**, **usability**, and **efficiency**, GraBbit allows you to effortlessly sync clipboard content and transfer small files between devices — all without the cloud.
+**GraBbit** turns your local devices into a powerful, private ecosystem — think **Apple Handoff** or **Samsung Quick Share**, but for **any platform**, **without the cloud**, and **with full encryption**.
 
-🛡️ **Privacy-first** — all data is encrypted  
-🖥️ **Dual-mode operation** — run as host or node  
-🌐 **Local-only** — no external servers, fully offline
+📱💻 Imagine copying a text on your laptop and instantly seeing it on your phone or desktop, over the same Wi-Fi.  
+📂 Want to send an image or file? Just drop it — GraBbit handles it securely and instantly.
+
+> ⚡ It's a personal ecosystem — when you're in **desperate need of device synergy**, GraBbit becomes the **soul** of your workflow.
 
 ---
 
-## 🔧 Key Features
+## 🌟 Key Features
 
 ### 🎭 Dual Modes
-- **Host Mode**:  
-  Acts as a central receiver, listening on a local IP and port. Configurable data retention.
-- **Node Mode**:  
-  Connects to the host to send clipboard entries and files.
+- **Host Mode**  
+  Central device that receives clipboard and files from others. Set IP/port, manage retention.
 
-### 🔄 Clipboard Synchronization
-- Real-time clipboard monitoring  
-- Stores data with rich metadata:  
-  `timestamp`, `device name`, `username`, `OS`  
-- Smart deduplication of entries
+- **Node Mode**  
+  Connect to a host and push clipboard entries or files with a single key press.
 
-### ⏳ Data Retention Control
-- Store data:
+### 🔄 Instant Clipboard Sharing
+- Works like magic: Press `Ctrl + C` on one device, open GraBbit on another, and it's there.  
+- Tracks and syncs:
+  - Text 📝  
+  - Files 📁  
+  - Images 🖼️
+
+- Rich metadata (timestamp, device name, OS, username)  
+- Smart deduplication for clean history
+
+### 🔒 Encrypted Transfers
+- Every transfer is secured with **AES-GCM** — protecting your data in transit  
+- Zero cloud, zero leakage — 100% private, 100% local
+
+### 📂 File & Image Support
+- Transfer small files and images with ease  
+- Optional compression for images  
+- Cross-device, cross-platform compatibility
+
+### 🧠 Configurable Data Retention
+- Keep data:
   - Until manual deletion
-  - 1 day
-  - 1 week
-  - 1 month
+  - For 1 day
+  - For 1 week
+  - For 1 month
 
-### 🔐 Secure Transfer
-- **AES-GCM** encryption for all data in transit  
-- Guarantees both **confidentiality** and **integrity**
+### 🖥️ Minimal Dashboard Interface
+- View all received clipboard entries and files  
+- See which devices are connected  
+- Monitor live transfer activity
 
-### 🖥️ Dashboard Interface
-- Minimal and responsive UI  
-- View received data with metadata  
-- Live monitoring:  
-  - Active devices  
-  - Transfer activity  
-  - Clipboard item count
-
-### ⚙️ Application Settings
-- Light/Dark theme toggle 🌗  
-- Image compression level setting  
-- Host/Node mode switch  
+### ⚙️ Customizable Settings
+- Light & Dark Mode 🌗  
+- Image compression slider  
+- Switch between Host and Node anytime
 
 ---
 
-## 🛠️ Technical Highlights
+## 📦 Real Use Cases
+
+| Scenario | Solution |
+|----------|----------|
+| Copy code on laptop → paste on desktop | ✅ GraBbit syncs it instantly |
+| Share a quick image across devices without cloud | ✅ Encrypted local transfer |
+| Keep work and personal device clipboards in sync | ✅ One host, multiple nodes |
+| Offline LAN-only environments | ✅ 100% local, no internet needed |
+
+> You don’t need to be in the Apple or Samsung ecosystem. **Build your own with GraBbit.**
+
+---
+
+## 🛠️ Under the Hood
 
 | Component     | Description |
 |---------------|-------------|
 | **Language**  | Rust 🦀 |
-| **UI Framework** | [Iced](https://github.com/iced-rs/iced) — Elm-style architecture |
-| **Encryption** | AES-GCM (Authenticated Encryption) |
-| **Networking** | Local HTTP APIs over LAN |
-| **Storage**    | JSON-based metadata and clipboard history |
-
----
-
-## 📦 Use Case Scenarios
-
-- ✅ Instantly sync clipboard content between laptop and desktop  
-- ✅ Secure file transfers across your local network  
-- ✅ Temporary data sharing without relying on the internet  
-- ✅ Perfect for teams in secure environments or privacy-focused individuals
-
----
-
-## 💡 Why GraBbit?
-
-✔️ **No cloud** — your data never leaves your network  
-✔️ **Encryption-first** — strong, modern security by default  
-✔️ **Beautifully minimal UI** — built for focus and speed  
-✔️ **Host-Node model** — allows flexible device arrangements  
-✔️ **Cross-platform** — works on Windows, Linux, and macOS
-
-> ⚡ “Grab it. Share it. Forget it.” — That's the GraBbit way.
+| **UI**        | [Iced](https://github.com/iced-rs/iced) — Elm-style architecture |
+| **Storage**   | JSON files with full metadata and timestamping |
+| **Networking**| Local HTTP APIs over Wi-Fi |
+| **Encryption**| AES-GCM authenticated encryption |
 
 ---
 
 ## 🚀 Getting Started
 
 ```bash
-# Clone the repository
+# Clone the repo
 git clone https://github.com/yourusername/grabbit.git
 cd grabbit
 
