@@ -1,4 +1,4 @@
-#![feature(iter_array_chunks)]
+// #![feature(iter_array_chunks)]
 
 use aes_gcm::aead::rand_core::RngCore;
 use std::fs;
@@ -36,14 +36,16 @@ fn handle_client(mut stream: TcpStream) {
 fn main() -> anyhow::Result<()> {
     println!("Hello, world!");
     find_os();
+    
+    get_local_ip();
 
-    let json_file = "clipboard_history.json";
+    // let json_file = "clipboard_history.json";
 
-    // Start clipboard monitoring in background thread
-    let json_file_clone = json_file.to_string();
-    std::thread::spawn(move || {
-        let _ = clipboard_monitor_txtloop(&json_file_clone);
-    });
+    // // Start clipboard monitoring in background thread
+    // let json_file_clone = json_file.to_string();
+    // std::thread::spawn(move || {
+    //     let _ = clipboard_monitor_txtloop(&json_file_clone);
+    // });
 
     // let _img_path = "/home/aadhiishvar/Downloads/robin.jpg";
     // convert_to_png(_img_path);
@@ -530,7 +532,21 @@ fn find_os() -> Result<(),Box<dyn Error>>
     Ok(())
 }
 
+use std::net::UdpSocket;
+
+fn get_local_ip() -> Option<String> {
+    // This does NOT actually connect to the internet
+    if let Ok(socket) = UdpSocket::bind("0.0.0.0:0") {
+        if socket.connect("8.8.8.8:80").is_ok() {
+            if let Ok(local_addr) = socket.local_addr() {
+                println!("{:?}",local_addr.ip().to_string());   
+            }
+        }
+    }
+    
+    None
+}
+
+
+
 //use the ai tools wiselt , i did some RnD abt the teckstack b4 cv on it , i aint cokmpleetely depend in a ai
-
-
-
