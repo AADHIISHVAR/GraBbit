@@ -96,7 +96,8 @@
 
 ---
 
-## 🚀 Getting Started
+## 🚀todo(Getting Started)! ill update the app and teh screenshort of the working model once its done, soon the beta will be realesed
+
 
 ```bash
 # Clone the repo
