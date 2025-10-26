@@ -29,9 +29,15 @@ fn clipboard_section(app: &Display) -> Element<Messages> {
         row![
             text("Clipboard History").size(24),
             iced::widget::container(
-                button(text("Clear All").size(14))
-                    .padding(8)
-                    .on_press(Messages::ClearAll)
+                row![
+                    button(text("🔄 Reload").size(14))
+                        .padding(8)
+                        .on_press(Messages::ReloadData),
+                    button(text("Clear All").size(14))
+                        .padding(8)
+                        .on_press(Messages::ClearAll)
+                ]
+                .spacing(10)
             )
             .width(Length::Fill)
             .align_x(Horizontal::Right),

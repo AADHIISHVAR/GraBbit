@@ -1,7 +1,6 @@
 
-use iced::{Element, Length};
+use iced::Length;
 use iced::widget::{button, text};
-use crate::gui::styles;
 
 pub fn view<'a, T: 'a, F>(
     label: &'a str,
@@ -16,6 +15,5 @@ where
     button(text(label).size(14))
         .padding(12)
         .width(Length::Fill)
-        .style(styles::active_button(is_active))
         .on_press(message)
 }

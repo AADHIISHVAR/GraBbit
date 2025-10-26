@@ -1,12 +1,22 @@
 [
   {
-    "timestamp": "2025-10-24T21:32:58.541740673+05:30",
+    "timestamp": "2025-10-26T22:32:30.788592129+05:30",
     "device_name": "archlinux",
     "os_name": "Linux",
     "user_name": "aadhiishvar",
     "content_type": "text",
-    "text_content": "No database, no tokio, no RAM issues - just a simple JSON file that grows with your clipboard history. Much simpler and exactly what you need!",
+    "text_content": "Display::run(iced::Settings::default())?;",
     "encrypted_data": null,
     "file_path": null
+  },
+  {
+    "timestamp": "2025-10-26T22:33:03.909813576+05:30",
+    "device_name": "archlinux",
+    "os_name": "Linux",
+    "user_name": "aadhiishvar",
+    "content_type": "file",
+    "text_content": "🖼️  MPimgEdges.jpeg",
+    "encrypted_data": null,
+    "file_path": "/home/aadhiishvar/Downloads/MPimgEdges.jpeg"
   }
 ]

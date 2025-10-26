@@ -1,8 +1,6 @@
-use iced::{Center, Element, Length};
+use iced::{Element, Length};
 use iced::widget::{column, container, text};
-use iced::alignment::Horizontal;
 use crate::gui::app::Messages;
-use crate::gui::styles;
 
 pub fn view() -> Element<'static, Messages> {
     container(
@@ -34,11 +32,8 @@ pub fn view() -> Element<'static, Messages> {
             text("Version 1.0.0 | Made with ❤️ for local collaboration").size(14),
         ]
             .spacing(30)
-            .align_x(Horizontal::Center)
     )
         .width(Length::Fill)
         .padding(50)
-        .style(styles::card_container)
-        .align_x(Center)
         .into()
 }

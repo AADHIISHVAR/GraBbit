@@ -2,7 +2,6 @@ use iced::{Element, Length};
 use iced::widget::{button, container, row, text};
 use iced::alignment::Horizontal;
 use crate::gui::app::{Display, Messages, Page};
-use crate::gui::styles;
 
 pub fn view(app: &Display) -> Element<Messages> {
     container(
@@ -26,9 +25,7 @@ pub fn view(app: &Display) -> Element<Messages> {
 }
 
 fn tab_button<'a>(app: &Display, label: &'a str, page: Page) -> button::Button<'a, Messages> {
-    let is_active = app.current_page == page;
     button(text(label).size(16))
         .padding(12)
-        .style(styles::tab_button(is_active))
-        .on_press(Messages::TabChanged(page))
+        .on_press(Messages::TabChanged(page.clone()))
 }

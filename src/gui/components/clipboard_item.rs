@@ -1,7 +1,7 @@
 use iced::{Element, Length};
 use iced::widget::{column, container, row, text};
-use crate::gui::app::{ClipboardItem, Messages};
-use crate::gui::styles;
+use crate::storage::ClipboardItem;
+use crate::gui::app::Messages;
 
 pub fn view<'a>(item: &'a ClipboardItem) -> Element<'a, Messages> {
     container(
@@ -18,6 +18,5 @@ pub fn view<'a>(item: &'a ClipboardItem) -> Element<'a, Messages> {
     )
         .width(Length::Fill)
         .padding(16)
-        .style(styles::item_container)
         .into()
 }

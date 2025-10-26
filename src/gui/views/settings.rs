@@ -1,7 +1,6 @@
 use iced::{Element, Length};
 use iced::widget::{button, column, container, pick_list, row, scrollable, text, text_input, toggler, Column};
 use crate::gui::app::{CompressionQuality, ConnectionMode, DataRetention, Display, Messages};
-use crate::gui::styles;
 
 pub fn view(app: &Display) -> Element<Messages> {
     scrollable(
@@ -23,8 +22,7 @@ fn settings_box(app: &Display) -> Element<Messages> {
                 text("Theme").size(14),
                 row![
                     text("Light"),
-                    toggler(app.darkmode)
-                        .on_toggle(|_| Messages::ToggleTheme),
+                    toggler(String::from(""), app.darkmode, |value| Messages::ToggleTheme),
                     text("Dark"),
                 ]
                 .spacing(10),
@@ -46,8 +44,7 @@ fn settings_box(app: &Display) -> Element<Messages> {
             column![
                 text("Secure Transfer").size(14),
                 row![
-                    toggler(app.secure_transfer)
-                        .on_toggle(Messages::SecureTransferToggled),
+                    toggler(String::from(""), app.secure_transfer, Messages::SecureTransferToggled),
                     text("Enabled"),
                 ]
                 .spacing(10),
@@ -58,7 +55,7 @@ fn settings_box(app: &Display) -> Element<Messages> {
                 text("Data Retention").size(14),
                 pick_list(
                     &DataRetention::ALL[..],
-                    Some(app.data_retention),
+                    Some(app.data_retention.clone()),
                     Messages::DataRetentionChanged,
                 )
                 .padding(10)
@@ -70,7 +67,6 @@ fn settings_box(app: &Display) -> Element<Messages> {
     )
         .width(Length::Fill)
         .padding(30)
-        .style(styles::card_container)
         .into()
 }
 
@@ -83,7 +79,6 @@ fn compression_button<'a>(
     button(text(label).size(14))
         .padding(12)
         .width(Length::Fill)
-        .style(styles::active_button(is_active))
         .on_press(Messages::CompressionChanged(quality))
 }
 
@@ -109,7 +104,6 @@ fn connection_mode_box(app: &Display) -> Element<Messages> {
     )
         .width(Length::Fill)
         .padding(30)
-        .style(styles::card_container)
         .into()
 }
 
@@ -122,7 +116,6 @@ fn mode_button<'a>(
     button(text(label).size(14))
         .padding(12)
         .width(Length::Fill)
-        .style(styles::active_button(is_active))
         .on_press(Messages::ConnectionModeChanged(mode))
 }
 
@@ -154,7 +147,6 @@ fn host_mode_inputs(app: &Display) -> Column<Messages> {
 
         button(text("Start Hosting").size(14))
             .padding(12)
-            .style(styles::primary_button)
             .on_press(Messages::StartHosting),
     ]
         .spacing(20)
@@ -180,7 +172,6 @@ fn node_mode_inputs(app: &Display) -> Column<Messages> {
 
         button(text("Connect to Host").size(14))
             .padding(12)
-            .style(styles::primary_button)
             .on_press(Messages::ConnectToHost),
     ]
         .spacing(20)
