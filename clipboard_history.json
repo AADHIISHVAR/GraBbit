@@ -1,0 +1,12 @@
+[
+  {
+    "timestamp": "2025-10-24T21:32:58.541740673+05:30",
+    "device_name": "archlinux",
+    "os_name": "Linux",
+    "user_name": "aadhiishvar",
+    "content_type": "text",
+    "text_content": "No database, no tokio, no RAM issues - just a simple JSON file that grows with your clipboard history. Much simpler and exactly what you need!",
+    "encrypted_data": null,
+    "file_path": null
+  }
+]
