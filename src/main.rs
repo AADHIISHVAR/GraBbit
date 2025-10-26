@@ -33,19 +33,19 @@ fn handle_client(mut stream: TcpStream) {
 
 } //streams the clip file
 
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<(), Box<dyn Error>> {
     println!("Hello, world!");
     find_os();
-    
+
     get_local_ip();
 
-    // let json_file = "clipboard_history.json";
+    let json_file = "clipboard_history.json";
 
-    // // Start clipboard monitoring in background thread
-    // let json_file_clone = json_file.to_string();
-    // std::thread::spawn(move || {
-    //     let _ = clipboard_monitor_txtloop(&json_file_clone);
-    // });
+    // Start clipboard monitoring in background thread
+    let json_file_clone = json_file.to_string();
+    std::thread::spawn(move || {
+        let _ = clipboard_monitor_txtloop(&json_file_clone);
+    });
 
     // let _img_path = "/home/aadhiishvar/Downloads/robin.jpg";
     // convert_to_png(_img_path);
@@ -195,7 +195,10 @@ struct ClipboardEntry {
     device_name: String,
     os_name: String,
     user_name: String,
-    content: String,
+    content_type: String,
+    text_content: Option<String>,
+    encrypted_data: Option<String>,
+    file_path: Option<String>,
 }
 
 
@@ -205,7 +208,13 @@ use chrono::Local;
 use whoami;
 
 
-fn save_clipboard_entry(new_content: &str, json_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn save_clipboard_entry(
+    content_type: &str,
+    text_content: Option<String>,
+    encrypted_data: Option<String>,
+    file_path: Option<String>,
+    json_path: &str
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut entries: Vec<ClipboardEntry> = if std::path::Path::new(json_path).exists() {
         let mut file = File::open(json_path)?;
         let mut content = String::new();
@@ -214,11 +223,6 @@ fn save_clipboard_entry(new_content: &str, json_path: &str) -> Result<(), Box<dy
     } else {
         vec![]
     };
-
-    // Skip if the content is same as last entry
-    if entries.last().map(|e| e.content.as_str()) == Some(new_content) {
-        return Ok(());
-    }
 
     let device_name = whoami::devicename_os();
     let user_name = whoami::username();
@@ -230,7 +234,10 @@ fn save_clipboard_entry(new_content: &str, json_path: &str) -> Result<(), Box<dy
         device_name: OsString::from(device_name).to_string_lossy().to_string(),
         os_name: os_name.to_string(),
         user_name,
-        content: new_content.to_string(),
+        content_type: content_type.to_string(),
+        text_content,
+        encrypted_data,
+        file_path,
     };
 
     entries.push(entry);
@@ -257,15 +264,38 @@ fn clipboard_monitor_txtloop(json_path: &str) -> Result<(), Box<dyn std::error::
             Ok(current_content) => {
                 if current_content != last_content
                 {
-                    save_clipboard_entry(&current_content, json_path)?;
                     last_content = current_content.clone();
                     println!("Saved clipboard: {}", &current_content);
 
                     if let Some(file_info) = extract_path_from_clipboard(&current_content) {
                         // Hardcoded 32-byte hex key (64 hex characters = 32 bytes)
                         let key_hex = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2";
-                        if let Err(e) = process_file(&file_info.path, key_hex) {
-                            eprintln!("Error processing file: {}", e);
+                        match process_file(&file_info.path, key_hex) {
+                            Ok(encrypted_b64) => {
+                                if let Err(e) = save_clipboard_entry(
+                                    "file",
+                                    None,
+                                    Some(encrypted_b64),
+                                    Some(file_info.path.to_string_lossy().to_string()),
+                                    json_path
+                                ) {
+                                    eprintln!("Error saving file entry: {}", e);
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("Error processing file: {}", e);
+                            }
+                        }
+                    } else {
+                        // Plain text
+                        if let Err(e) = save_clipboard_entry(
+                            "text",
+                            Some(current_content.clone()),
+                            None,
+                            None,
+                            json_path
+                        ) {
+                            eprintln!("Error saving text entry: {}", e);
                         }
                     }
 
@@ -278,7 +308,7 @@ fn clipboard_monitor_txtloop(json_path: &str) -> Result<(), Box<dyn std::error::
             }
         }
 
-        // thread::sleep(Duration::from_secs(1));
+        thread::sleep(Duration::from_secs(1));
     }
 }
 
@@ -369,11 +399,11 @@ use base64::{engine::general_purpose, Engine as _};
 
 const CHUNK_SIZE: usize = 1024 * 1024; // 1 MiB
 
-fn hex_key_to_bytes(s: &str) -> anyhow::Result<[u8;32]> {
+fn hex_key_to_bytes(s: &str) -> Result<[u8;32], Box<dyn Error>> {
     let v = hex::decode(s)?;
     if v.len() != 32 {
         println!("key must eb 32 bytes, {}",v.len());
-        anyhow::bail!("key must be 32 bytes");
+        return Err("key must be 32 bytes".into());
     }
     let mut a = [0u8;32];
     a.copy_from_slice(&v);
@@ -382,7 +412,7 @@ fn hex_key_to_bytes(s: &str) -> anyhow::Result<[u8;32]> {
     Ok(a)
 }
 
-fn compute_sha256(path: &Path) -> anyhow::Result<String> {
+fn compute_sha256(path: &Path) -> Result<String, Box<dyn Error>> {
     let mut f = File::open(path)?;
     let mut hasher = Sha256::new();
     let mut buf = [0u8; 8192];
@@ -399,7 +429,7 @@ fn compute_sha256(path: &Path) -> anyhow::Result<String> {
     Ok(hash)
 }
 
-fn compress_file(src: &Path, dest: &Path) -> anyhow::Result<()> {
+fn compress_file(src: &Path, dest: &Path) -> Result<(), Box<dyn Error>> {
     println!("\n[COMPRESS] Starting compression...");
     println!("[COMPRESS] Source: {}", src.display());
     println!("[COMPRESS] Dest: {}", dest.display());
@@ -419,12 +449,12 @@ fn compress_file(src: &Path, dest: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn encrypt_file(src: &Path, dest: &Path, key_bytes: &[u8;32]) -> anyhow::Result<()> {
+fn encrypt_file(src: &Path, dest: &Path, key_bytes: &[u8;32]) -> Result<(), Box<dyn Error>> {
     println!("\n[ENCRYPT] Initializing encryption...");
     println!("[ENCRYPT] Algorithm: XChaCha20-Poly1305");
 
     let cipher = XChaCha20Poly1305::new_from_slice(key_bytes)
-        .map_err(|e| anyhow::anyhow!("Key error: {:?}", e))?;
+        .map_err(|e| format!("Key error: {:?}", e))?;
 
     let mut input = File::open(src)?;
     let mut output = File::create(dest)?;
@@ -450,7 +480,7 @@ fn encrypt_file(src: &Path, dest: &Path, key_bytes: &[u8;32]) -> anyhow::Result<
 
         // Encrypt
         let ciphertext = cipher.encrypt(nonce, plaintext)
-            .map_err(|e| anyhow::anyhow!("Encryption failed: {:?}", e))?;
+            .map_err(|e| format!("Encryption failed: {:?}", e))?;
 
         println!("[ENCRYPT] Ciphertext size: {} bytes (includes 16 byte auth tag)", ciphertext.len());
         println!("[ENCRYPT] Ciphertext (hex): {}", hex_encode(&ciphertext));
@@ -470,7 +500,7 @@ fn encrypt_file(src: &Path, dest: &Path, key_bytes: &[u8;32]) -> anyhow::Result<
     Ok(())
 }
 
-pub fn process_file(path: &Path, key_hex: &str) -> anyhow::Result<()> {
+pub fn process_file(path: &Path, key_hex: &str) -> Result<String, Box<dyn Error>> {
     println!("==============================================");
     println!("     FILE ENCRYPTION PIPELINE");
     println!("==============================================");
@@ -517,7 +547,7 @@ pub fn process_file(path: &Path, key_hex: &str) -> anyhow::Result<()> {
     println!("  Encrypted: {}", encrypted_path.display());
     println!("==============================================");
 
-    Ok(())
+    Ok(b64)
 }
 
 fn find_os() -> Result<(),Box<dyn Error>>
@@ -535,15 +565,15 @@ fn find_os() -> Result<(),Box<dyn Error>>
 use std::net::UdpSocket;
 
 fn get_local_ip() -> Option<String> {
-    // This does NOT actually connect to the internet
+    // This does NOT actually connect to the internet, aslo need interned connection to the f wifi to fetch the local ip lol, need to figure a way beter that this pice of AI shit 
     if let Ok(socket) = UdpSocket::bind("0.0.0.0:0") {
         if socket.connect("8.8.8.8:80").is_ok() {
             if let Ok(local_addr) = socket.local_addr() {
-                println!("{:?}",local_addr.ip().to_string());   
+                println!("{:?}",local_addr.ip().to_string());
             }
         }
     }
-    
+
     None
 }
 
