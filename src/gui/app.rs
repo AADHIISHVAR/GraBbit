@@ -1,3 +1,4 @@
+use base64::Engine;
 use iced::{Element, Sandbox, Theme};
 use crate::gui::views::{dashboard, settings, about};
 use crate::gui::components::header;
@@ -70,6 +71,14 @@ pub struct Display {
     pub host_ip: String,
     pub port: String,
     pub host_duration: String,
+    
+    // Image decode
+    pub image_decode_input: String,
+    pub custom_save_dir: String,
+    
+    // Counters
+    pub connected_users: u8,
+    pub file_transfers: u8,
 }
 
 #[derive(Debug, Clone)]
@@ -88,6 +97,12 @@ pub enum Messages {
     StartHosting,
     ConnectToHost,
     ReloadData,
+    ImageDecodeInputChanged(String),
+    CustomSaveDirChanged(String),
+    DecodeImage,
+    ShowLatestImageData,
+    DownloadFile(ClipboardItem),
+    CopyEncryptedData(ClipboardItem),
 }
 
 impl Sandbox for Display {
@@ -98,6 +113,9 @@ impl Sandbox for Display {
             Ok(items) => items,
             Err(_) => Vec::new(),
         };
+        
+        // Get detected IP
+        let detected_ip = crate::network::get_local_ip().unwrap_or_else(|| "127.0.0.1".to_string());
         
         Display {
             current_page: Page::Dashboard,
@@ -110,9 +128,17 @@ impl Sandbox for Display {
             secure_transfer: true,
             data_retention: DataRetention::Manual,
             connection_mode: ConnectionMode::Host,
-            host_ip: String::new(),
+            host_ip: detected_ip, // Use detected IP
             port: String::from("7879"),
-            host_duration: String::new(),
+            host_duration: String::from("30 minutes"),
+            
+            // Image decode
+            image_decode_input: String::new(),
+            custom_save_dir: String::from("/home/aadhiishvar/Downloads"),
+            
+            // Counters
+            connected_users: 0,
+            file_transfers: 0,
         }
     }
 
@@ -186,6 +212,69 @@ impl Sandbox for Display {
                 if let Ok(items) = crate::storage::load_clipboard_history() {
                     self.clip_data = items;
                     println!("Reloaded {} clipboard entries", self.clip_data.len());
+                }
+            }
+            Messages::ImageDecodeInputChanged(input) => {
+                self.image_decode_input = input;
+            }
+            Messages::CustomSaveDirChanged(dir) => {
+                self.custom_save_dir = dir;
+            }
+            Messages::DecodeImage => {
+                // Decode base64 image and save to custom directory
+                if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(&self.image_decode_input) {
+                    let filename = format!("decoded_image_{}.png", chrono::Local::now().timestamp());
+                    let save_path = std::path::Path::new(&self.custom_save_dir).join(filename);
+                    
+                    if let Err(e) = std::fs::write(&save_path, decoded) {
+                        eprintln!("Error saving decoded image: {}", e);
+                    } else {
+                        println!("Image saved to: {}", save_path.display());
+                        self.image_decode_input.clear();
+                    }
+                }
+            }
+            Messages::ShowLatestImageData => {
+                // Find the latest image entry and show its encoded data
+                if let Some(latest_image) = self.clip_data.iter()
+                    .rev()
+                    .find(|item| item.content.contains("🖼️")) {
+                    // For now, just show a message that we found an image
+                    self.image_decode_input = "Image data found - check console for details".to_string();
+                    println!("Found latest image: {}", latest_image.content);
+                } else {
+                    println!("No image data found in clipboard history");
+                }
+            }
+            Messages::DownloadFile(item) => {
+                // Download and decode the file
+                if let Some(encoded_data) = &item.encoded_data {
+                    if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(encoded_data) {
+                        let filename = if let Some(file_path) = &item.file_path {
+                            std::path::Path::new(file_path)
+                                .file_name()
+                                .and_then(|n| n.to_str())
+                                .unwrap_or("downloaded_file")
+                                .to_string()
+                        } else {
+                            format!("downloaded_file_{}", chrono::Local::now().timestamp())
+                        };
+                        
+                        let save_path = std::path::Path::new(&self.custom_save_dir).join(filename);
+                        
+                        if let Err(e) = std::fs::write(&save_path, decoded) {
+                            eprintln!("Error saving downloaded file: {}", e);
+                        } else {
+                            println!("File downloaded to: {}", save_path.display());
+                        }
+                    }
+                }
+            }
+            Messages::CopyEncryptedData(item) => {
+                // Copy encoded data to clipboard and paste in decoder
+                if let Some(encoded_data) = &item.encoded_data {
+                    self.image_decode_input = encoded_data.clone();
+                    println!("Copied encrypted data to decoder input");
                 }
             }
         }

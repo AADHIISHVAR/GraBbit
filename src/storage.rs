@@ -24,6 +24,9 @@ pub struct ClipboardItem {
     pub os: String,
     pub time: String,
     pub user: String,
+    pub encoded_data: Option<String>,
+    pub file_path: Option<String>,
+    pub content_type: String,
 }
 
 impl From<ClipboardEntry> for ClipboardItem {
@@ -44,6 +47,9 @@ impl From<ClipboardEntry> for ClipboardItem {
             os: entry.os_name,
             time,
             user: entry.user_name,
+            encoded_data: entry.encrypted_data,
+            file_path: entry.file_path,
+            content_type: entry.content_type,
         }
     }
 }

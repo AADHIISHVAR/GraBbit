@@ -16,7 +16,7 @@ pub fn view(app: &Display) -> Element<Messages> {
 fn stats_section(app: &Display) -> Element<Messages> {
     row![
         stat_card::view(app.connected_devices, "Connected Devices"),
-        stat_card::view(app.active_transfers, "Active Transfers"),
+        stat_card::view(app.file_transfers, "File Transfers"),
         stat_card::view(app.clip_data.len() as u8, "Total Items"),
     ]
         .spacing(20)

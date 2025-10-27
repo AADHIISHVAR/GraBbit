@@ -7,6 +7,7 @@ pub fn view(app: &Display) -> Element<Messages> {
         column![
             settings_box(app),
             connection_mode_box(app),
+            image_decode_box(app),
         ]
             .spacing(30)
     )
@@ -76,7 +77,13 @@ fn compression_button<'a>(
     quality: CompressionQuality
 ) -> button::Button<'a, Messages> {
     let is_active = app.compression_quality == quality;
-    button(text(label).size(14))
+    let button_text = if is_active {
+        format!("✓ {}", label)
+    } else {
+        label.to_string()
+    };
+    
+    button(text(button_text).size(14))
         .padding(12)
         .width(Length::Fill)
         .on_press(Messages::CompressionChanged(quality))
@@ -139,9 +146,10 @@ fn host_mode_inputs(app: &Display) -> Column<Messages> {
 
         column![
             text("Host Active Duration").size(14),
-            text_input("", &app.host_duration)
+            text_input("Enter duration (e.g., 30 minutes)", &app.host_duration)
                 .on_input(Messages::HostDurationChanged)
-                .padding(12),
+                .padding(10)
+                .width(Length::Fill),
         ]
         .spacing(10),
 
@@ -175,4 +183,42 @@ fn node_mode_inputs(app: &Display) -> Column<Messages> {
             .on_press(Messages::ConnectToHost),
     ]
         .spacing(20)
+}
+
+fn image_decode_box(app: &Display) -> Element<Messages> {
+    container(
+        column![
+            text("Image Decode").size(24),
+
+            column![
+                text("Base64 Encoded Image Data").size(14),
+                text_input("Paste base64 encoded image data here...", &app.image_decode_input)
+                    .on_input(Messages::ImageDecodeInputChanged)
+                    .padding(12),
+            ]
+            .spacing(10),
+
+            column![
+                text("Custom Save Directory").size(14),
+                text_input("", &app.custom_save_dir)
+                    .on_input(Messages::CustomSaveDirChanged)
+                    .padding(12),
+            ]
+            .spacing(10),
+
+            row![
+                button(text("Decode & Save Image").size(14))
+                    .padding(12)
+                    .on_press(Messages::DecodeImage),
+                button(text("Show Latest Image Data").size(14))
+                    .padding(12)
+                    .on_press(Messages::ShowLatestImageData),
+            ]
+            .spacing(10),
+        ]
+            .spacing(20)
+    )
+        .width(Length::Fill)
+        .padding(30)
+        .into()
 }
