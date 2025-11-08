@@ -5,8 +5,8 @@ use std::error::Error;
 use regex::Regex;
 use url::Url;
 use base64::Engine;
-use image::{ImageReader, ImageFormat};
-use std::io::Cursor;
+use tokio;
+
 
 /// File type enum
 #[derive(Debug)]
@@ -74,66 +74,96 @@ pub fn detect_file_type(path: &Path) -> FileType {
     }
 }
 
+async fn process_file_async(file_info: FileInfo, json_path: String) {
+    let file_name = file_info.path.file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("Unknown file")
+        .to_string();
+
+    match &file_info.file_type {
+        FileType::Image(_) => {
+            let display_text = format!("🖼️  {}", file_name);
+            let path_clone = file_info.path.clone();
+            if let Ok(encoded_data) = tokio::task::spawn_blocking(move || compress_file(&path_clone, crate::gui::app::CompressionQuality::Default)).await.unwrap() {
+                let _ = tokio::task::spawn_blocking(move || {
+                    crate::storage::save_clipboard_entry(
+                        "image",
+                        Some(display_text),
+                        Some(encoded_data),
+                        Some(file_info.path.to_string_lossy().to_string()),
+                        &json_path
+                    )
+                }).await;
+            }
+        }
+        FileType::Pdf | FileType::Document(_) => {
+            let display_text = match &file_info.file_type {
+                FileType::Pdf => format!("📄 {}", file_name),
+                FileType::Document(_) => format!("📝 {}", file_name),
+                _ => format!("📁 {}", file_name),
+            };
+            let _ = tokio::task::spawn_blocking(move || {
+                crate::storage::save_clipboard_entry(
+                    "document",
+                    Some(display_text),
+                    None,
+                    Some(file_info.path.to_string_lossy().to_string()),
+                    &json_path
+                )
+            }).await;
+        }
+        FileType::Audio(_) | FileType::Video(_) => {
+            let display_text = match &file_info.file_type {
+                FileType::Audio(_) => format!("🎵 {}", file_name),
+                FileType::Video(_) => format!("🎬 {}", file_name),
+                _ => format!("📁 {}", file_name),
+            };
+            let _ = tokio::task::spawn_blocking(move || {
+                crate::storage::save_clipboard_entry(
+                    "media",
+                    Some(display_text),
+                    None,
+                    Some(file_info.path.to_string_lossy().to_string()),
+                    &json_path
+                )
+            }).await;
+        }
+        _ => {
+            let display_text = format!("📁 {}", file_name);
+            let path_clone = file_info.path.clone();
+            if let Ok(encoded_data) = tokio::task::spawn_blocking(move || compress_file(&path_clone, crate::gui::app::CompressionQuality::Default)).await.unwrap() {
+                let _ = tokio::task::spawn_blocking(move || {
+                    crate::storage::save_clipboard_entry(
+                        "file",
+                        Some(display_text),
+                        Some(encoded_data),
+                        Some(file_info.path.to_string_lossy().to_string()),
+                        &json_path
+                    )
+                }).await;
+            }
+        }
+    }
+}
+
 /// Check if text is a file path
 pub fn is_file_path(text: &str) -> bool {
     let path = Path::new(text);
     path.exists() && path.is_file()
 }
 
-/// Compress file based on type and quality setting
-pub fn compress_file(path: &Path, quality: crate::gui::app::CompressionQuality) -> Result<String, Box<dyn Error>> {
-    // Check if it's an image
-    if let Some(extension) = path.extension().and_then(|ext| ext.to_str()) {
-        match extension.to_lowercase().as_str() {
-            "png" | "jpg" | "jpeg" | "gif" | "bmp" | "webp" => {
-                return compress_image(path, quality);
-            }
-            _ => {
-                // For non-image files, just read and compress with zstd
-                let file_data = std::fs::read(path)?;
-                let compressed = crate::security::compress_data(&file_data)?;
-                return Ok(base64::engine::general_purpose::STANDARD.encode(&compressed));
-            }
-        }
-    }
-    
-    // Fallback: read file and compress
+/// Compress file: read raw bytes, compress with zstd, base64 encode
+pub fn compress_file(path: &Path, _quality: crate::gui::app::CompressionQuality) -> Result<String, Box<dyn Error + Send + Sync>> {
+    // Read raw bytes directly
     let file_data = std::fs::read(path)?;
     let compressed = crate::security::compress_data(&file_data)?;
     Ok(base64::engine::general_purpose::STANDARD.encode(&compressed))
 }
 
-/// Compress and encode image based on quality setting with smart format selection
-pub fn compress_image(path: &Path, quality: crate::gui::app::CompressionQuality) -> Result<String, Box<dyn Error>> {
-    let img = ImageReader::open(path)?.decode()?;
-    
-    let mut buffer = Vec::new();
-    let format = match quality {
-        crate::gui::app::CompressionQuality::Default => {
-            // Use original format for default
-            if let Some(extension) = path.extension().and_then(|ext| ext.to_str()) {
-                match extension.to_lowercase().as_str() {
-                    "png" => ImageFormat::Png,
-                    "jpg" | "jpeg" => ImageFormat::Jpeg,
-                    "webp" => ImageFormat::WebP,
-                    _ => ImageFormat::Png, // Default fallback
-                }
-            } else {
-                ImageFormat::Png
-            }
-        },
-        crate::gui::app::CompressionQuality::Normal => ImageFormat::Png,
-        crate::gui::app::CompressionQuality::High => ImageFormat::Jpeg,
-    };
-    
-    img.write_to(&mut Cursor::new(&mut buffer), format)?;
-    
-    // Base64 encode the compressed image
-    Ok(base64::engine::general_purpose::STANDARD.encode(&buffer))
-}
+
 
 /// Monitor clipboard in a loop
-pub fn monitor_clipboard(json_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn monitor_clipboard(json_path: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut clipboard = Clipboard::new()?;
     let mut last_content = String::new();
 
@@ -146,129 +176,40 @@ pub fn monitor_clipboard(json_path: &str) -> Result<(), Box<dyn std::error::Erro
                     println!("Saved clipboard: {}", &current_content);
 
                     if let Some(file_info) = extract_path_from_clipboard(&current_content) {
+                        let json_file_clone = json_path.to_string();
                         let file_name = file_info.path.file_name()
                             .and_then(|n| n.to_str())
                             .unwrap_or("Unknown file")
                             .to_string();
-                        
-                        // Handle different file types
-                        match &file_info.file_type {
-                            FileType::Image(_) => {
-                                // Compress and encode image
-                                match compress_image(&file_info.path, crate::gui::app::CompressionQuality::Default) {
-                                    Ok(encoded_data) => {
-                                        let display_text = format!("🖼️  {}", file_name);
-                                        if let Err(e) = crate::storage::save_clipboard_entry(
-                                            "image",
-                                            Some(display_text),
-                                            Some(encoded_data),
-                                            Some(file_info.path.to_string_lossy().to_string()),
-                                            json_path
-                                        ) {
-                                            eprintln!("Error saving image entry: {}", e);
-                                        }
-                                    }
-                                    Err(e) => eprintln!("Error compressing image: {}", e),
-                                }
-                            }
-                            FileType::Pdf | FileType::Document(_) => {
-                                let display_text = match &file_info.file_type {
-                                    FileType::Pdf => format!("📄 {}", file_name),
-                                    FileType::Document(_) => format!("📝 {}", file_name),
-                                    _ => format!("📁 {}", file_name),
-                                };
-                                
-                                if let Err(e) = crate::storage::save_clipboard_entry(
-                                    "document",
-                                    Some(display_text),
-                                    None,
-                                    Some(file_info.path.to_string_lossy().to_string()),
-                                    json_path
-                                ) {
-                                    eprintln!("Error saving document entry: {}", e);
-                                }
-                            }
-                            FileType::Audio(_) | FileType::Video(_) => {
-                                let display_text = match &file_info.file_type {
-                                    FileType::Audio(_) => format!("🎵 {}", file_name),
-                                    FileType::Video(_) => format!("🎬 {}", file_name),
-                                    _ => format!("📁 {}", file_name),
-                                };
-                                
-                                if let Err(e) = crate::storage::save_clipboard_entry(
-                                    "media",
-                                    Some(display_text),
-                                    None,
-                                    Some(file_info.path.to_string_lossy().to_string()),
-                                    json_path
-                                ) {
-                                    eprintln!("Error saving media entry: {}", e);
-                                }
-                            }
-                            _ => {
-                                let display_text = format!("📁 {}", file_name);
-                                if let Err(e) = crate::storage::save_clipboard_entry(
-                                    "file",
-                                    Some(display_text),
-                                    None,
-                                    Some(file_info.path.to_string_lossy().to_string()),
-                                    json_path
-                                ) {
-                                    eprintln!("Error saving file entry: {}", e);
-                                }
-                            }
-                        }
-                        
+                        tokio::spawn(async move {
+                            process_file_async(file_info, json_file_clone).await;
+                        });
                         println!("Detected file: {}", file_name);
+                    } else if is_file_path(&current_content) {
+                        let path = Path::new(&current_content);
+                        let file_info = FileInfo {
+                            path: path.to_path_buf(),
+                            file_type: detect_file_type(path),
+                        };
+                        let json_file_clone = json_path.to_string();
+                        let file_name = path.file_name()
+                            .and_then(|n| n.to_str())
+                            .unwrap_or("Unknown file")
+                            .to_string();
+                        tokio::spawn(async move {
+                            process_file_async(file_info, json_file_clone).await;
+                        });
+                        println!("Detected and compressed file: {}", file_name);
                     } else {
-                        // Check if text is a file path
-                        if is_file_path(&current_content) {
-                            let path = Path::new(&current_content);
-                            let file_name = path.file_name()
-                                .and_then(|n| n.to_str())
-                                .unwrap_or("Unknown file")
-                                .to_string();
-                            
-                            // Compress the file
-                            match compress_file(path, crate::gui::app::CompressionQuality::Default) {
-                                Ok(encoded_data) => {
-                                    let display_text = format!("📁 {}", file_name);
-                                    if let Err(e) = crate::storage::save_clipboard_entry(
-                                        "file",
-                                        Some(display_text),
-                                        Some(encoded_data),
-                                        Some(current_content.clone()),
-                                        json_path
-                                    ) {
-                                        eprintln!("Error saving file entry: {}", e);
-                                    }
-                                    println!("Detected and compressed file: {}", file_name);
-                                }
-                                Err(e) => {
-                                    eprintln!("Error compressing file: {}", e);
-                                    // Fallback to plain text
-                                    if let Err(e) = crate::storage::save_clipboard_entry(
-                                        "text",
-                                        Some(current_content.clone()),
-                                        None,
-                                        None,
-                                        json_path
-                                    ) {
-                                        eprintln!("Error saving text entry: {}", e);
-                                    }
-                                }
-                            }
-                        } else {
-                            // Plain text
-                            if let Err(e) = crate::storage::save_clipboard_entry(
-                                "text",
-                                Some(current_content.clone()),
-                                None,
-                                None,
-                                json_path
-                            ) {
-                                eprintln!("Error saving text entry: {}", e);
-                            }
+                        // Plain text
+                        if let Err(e) = crate::storage::save_clipboard_entry(
+                            "text",
+                            Some(current_content.clone()),
+                            None,
+                            None,
+                            json_path
+                        ) {
+                            eprintln!("Error saving text entry: {}", e);
                         }
                     }
 

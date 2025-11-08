@@ -60,7 +60,7 @@ pub fn save_clipboard_entry(
     encrypted_data: Option<String>,
     file_path: Option<String>,
     json_path: &str
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut entries: Vec<ClipboardEntry> = if std::path::Path::new(json_path).exists() {
         let mut file = File::open(json_path)?;
         let mut content = String::new();
@@ -94,7 +94,7 @@ pub fn save_clipboard_entry(
     Ok(())
 }
 
-pub fn load_clipboard_history() -> Result<Vec<ClipboardItem>, Box<dyn Error>> {
+pub fn load_clipboard_history() -> Result<Vec<ClipboardItem>, Box<dyn Error + Send + Sync>> {
     let json_path = "clipboard_history.json";
     
     if !std::path::Path::new(json_path).exists() {
@@ -115,7 +115,7 @@ pub fn load_clipboard_history() -> Result<Vec<ClipboardItem>, Box<dyn Error>> {
     Ok(items)
 }
 
-pub fn clear_clipboard_history() -> Result<(), Box<dyn Error>> {
+pub fn clear_clipboard_history() -> Result<(), Box<dyn Error + Send + Sync>> {
     let json_path = "clipboard_history.json";
     
     if std::path::Path::new(json_path).exists() {

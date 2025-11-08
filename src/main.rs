@@ -15,7 +15,8 @@ pub mod network;
 static CONNECTED_USERS: AtomicU8 = AtomicU8::new(0);
 static FILE_TRANSFERS: AtomicU8 = AtomicU8::new(0);
 
-fn main() -> Result<(), Box<dyn Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     // Detect OS
     network::detect_os()?;
     
@@ -46,7 +47,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn start_server_with_counter() -> Result<(), Box<dyn Error>> {
+fn start_server_with_counter() -> Result<(), Box<dyn Error + Send + Sync>> {
     let ip = "0.0.0.0:7879";
     let listener = std::net::TcpListener::bind(ip)?;
 
@@ -72,7 +73,7 @@ fn start_server_with_counter() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn stream_clipboard_history(mut stream: TcpStream) -> Result<(), Box<dyn Error>> {
+fn stream_clipboard_history(mut stream: TcpStream) -> Result<(), Box<dyn Error + Send + Sync>> {
     match std::fs::read_to_string("clipboard_history.json") {
         Ok(contents) => {
             let response = format!(

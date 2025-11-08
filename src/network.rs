@@ -20,7 +20,7 @@ pub fn handle_client(mut stream: TcpStream) {
 }
 
 /// Start TCP server
-pub fn start_server() -> Result<(), Box<dyn Error>> {
+pub fn start_server() -> Result<(), Box<dyn Error + Send + Sync>> {
     let ip = "0.0.0.0:7879";
     let listener = TcpListener::bind(ip)?;
     
@@ -67,7 +67,7 @@ pub fn get_local_ip() -> Option<String> {
 }
 
 /// Detect OS
-pub fn detect_os() -> Result<(), Box<dyn Error>> {
+pub fn detect_os() -> Result<(), Box<dyn Error + Send + Sync>> {
     println!("Detecting OS and fetching clipboard data...\n");
     match std::env::consts::OS {
         "windows" => println!("the code base is working or WINDOWS based system"),

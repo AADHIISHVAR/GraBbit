@@ -10,14 +10,14 @@ use base64::{engine::general_purpose, Engine as _};
 const CHUNK_SIZE: usize = 1024 * 1024; // 1 MiB
 
 /// Compress data using zstd
-pub fn compress_data(data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
+pub fn compress_data(data: &[u8]) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     let mut encoder = Encoder::new(Vec::new(), 3)?;
     encoder.write_all(data)?;
     encoder.finish().map_err(|e| e.into())
 }
 
 /// Convert hex string to 32-byte array
-pub fn hex_key_to_bytes(s: &str) -> Result<[u8;32], Box<dyn Error>> {
+pub fn hex_key_to_bytes(s: &str) -> Result<[u8;32], Box<dyn Error + Send + Sync>> {
     let v = hex::decode(s)?;
     if v.len() != 32 {
         return Err("key must be 32 bytes".into());
@@ -28,7 +28,7 @@ pub fn hex_key_to_bytes(s: &str) -> Result<[u8;32], Box<dyn Error>> {
 }
 
 /// Process file: compress + encrypt + base64 encode  
-pub fn process_file(path: &Path, key_hex: &str) -> Result<String, Box<dyn Error>> {
+pub fn process_file(path: &Path, key_hex: &str) -> Result<String, Box<dyn Error + Send + Sync>> {
     println!("[SECURITY] Processing file: {}", path.display());
     
     // Parse key
