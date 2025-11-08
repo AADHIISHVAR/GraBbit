@@ -2,6 +2,8 @@ use std::error::Error;
 use gui::app::Display;
 use iced::Sandbox;
 use std::sync::atomic::{AtomicU8, Ordering};
+use std::net::TcpStream;
+use std::io::Write;
 
 pub mod gui;
 pub mod storage;
@@ -47,9 +49,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn start_server_with_counter() -> Result<(), Box<dyn Error>> {
     let ip = "0.0.0.0:7879";
     let listener = std::net::TcpListener::bind(ip)?;
-    
+
     println!("Server listening on {}", ip);
-    
+
     for stream in listener.incoming() {
         match stream {
             Ok(_stream) => {
@@ -57,15 +59,30 @@ fn start_server_with_counter() -> Result<(), Box<dyn Error>> {
                 CONNECTED_USERS.fetch_add(1, Ordering::Relaxed);
                 let count = CONNECTED_USERS.load(Ordering::Relaxed);
                 println!("User connected. Total users: {}", count);
-                
-                // Handle client in separate thread
+
+                // Stream clipboard history to client
                 std::thread::spawn(move || {
-                    network::handle_client(_stream);
+                    let _ = stream_clipboard_history(_stream);
                 });
             }
             Err(_) => {}
         }
     }
 
+    Ok(())
+}
+
+fn stream_clipboard_history(mut stream: TcpStream) -> Result<(), Box<dyn Error>> {
+    match std::fs::read_to_string("clipboard_history.json") {
+        Ok(contents) => {
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
+                contents.len(),
+                contents
+            );
+            let _ = stream.write_all(response.as_bytes());
+        }
+        Err(_) => {}
+    }
     Ok(())
 }
